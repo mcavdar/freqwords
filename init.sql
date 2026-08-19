@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS sentences (
+  id SERIAL PRIMARY KEY,
+  word TEXT NOT NULL,
+  sentence TEXT NOT NULL,
+  created_at DATE DEFAULT CURRENT_DATE
+);
