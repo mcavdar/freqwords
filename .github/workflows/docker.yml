@@ -68,7 +68,7 @@ jobs:
           username: ${{ secrets.PROD_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
           script: |
-            cd /opt/freqwords
+            cd /opt/apps/freqwords
 
             docker compose pull app
             docker compose up -d app
