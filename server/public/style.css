@@ -139,3 +139,17 @@ body {
   padding: 60px 20px;
   color: #777;
 }
+
+.site-nav {
+  border-bottom: 1px solid #ddd;
+  padding: 12px 0;
+}
+
+.nav-inner {
+  display: flex;
+  gap: 20px;
+}
+
+.site-nav a {
+  text-decoration: none;
+}
