@@ -52,6 +52,7 @@ app.get('/', async (req, res) => {
     res,
     'sentences',
     'Daily Sentences',
+    'Learn English with three example sentences every day.',
     'en',
     '/'
   );
@@ -68,6 +69,7 @@ app.get('/fr', async (req, res) => {
     res,
     'sentences_fr',
     'Phrases françaises',
+    'Apprenez le français avec trois phrases d’exemple chaque jour.',
     'fr',
     '/fr'
   );
@@ -78,7 +80,7 @@ app.get('/fr', async (req, res) => {
 // Generic page renderer
 // --------------------------------------------------
 
-async function renderPage(req, res, table, title, language, basePath) {
+async function renderPage(req, res, table, title, description, language, basePath) {
   try {
     let week = Number.parseInt(req.query.week, 10);
 
@@ -216,12 +218,14 @@ async function renderPage(req, res, table, title, language, basePath) {
       ${navigation}
     `;
 
-    res.send(
-      template
-        .replace('{{CONTENT}}', pageContent)
-        .replace('{{TITLE}}', title)
-        .replace('{{LANG}}', language)
-    );
+
+res.send(
+  template
+    .replaceAll('{{TITLE}}', title)
+    .replaceAll('{{DESCRIPTION}}', description)
+    .replaceAll('{{LANG}}', language)
+    .replaceAll('{{CONTENT}}', pageContent)
+);
 
   } catch (err) {
     console.error(`Failed to load ${table}:`, err);
