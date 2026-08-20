@@ -3,36 +3,14 @@ const pool = require('../db');
 
 const router = express.Router();
 
-router.get('/sentences', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT id, sentence, word, created_at
-      FROM sentences
-      ORDER BY created_at DESC, id ASC
-    `);
+const TABLES = {
+  en: 'sentences',
+  fr: 'sentences_fr'
+};
 
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Failed to fetch sentences:', err);
-    res.status(500).json({
-      error: 'Failed to fetch sentences'
-    });
-  }
-});
-
-router.post('/sentences', async (req, res) => {
+router.post('/:lang(en|fr)/sentences', async (req, res) => {
+  const table = TABLES[req.params.lang];
   const { word, sentences } = req.body;
-
-  if (
-    typeof word !== 'string' ||
-    !word.trim() ||
-    !Array.isArray(sentences) ||
-    sentences.length === 0
-  ) {
-    return res.status(400).json({
-      error: 'word and a non-empty sentences array are required'
-    });
-  }
 
   const client = await pool.connect();
 
@@ -40,30 +18,18 @@ router.post('/sentences', async (req, res) => {
     await client.query('BEGIN');
 
     for (const sentence of sentences) {
-      if (typeof sentence !== 'string' || !sentence.trim()) {
-        throw new Error('Invalid sentence');
-      }
-
       await client.query(
-        'INSERT INTO sentences (word, sentence) VALUES ($1, $2)',
-        [word.trim(), sentence.trim()]
+        `INSERT INTO ${table} (word, sentence) VALUES ($1,$2)`,
+        [word, sentence]
       );
     }
 
     await client.query('COMMIT');
+    res.status(201).json({ count: sentences.length });
 
-    res.status(201).json({
-      word: word.trim(),
-      count: sentences.length
-    });
-  } catch (err) {
+  } catch (e) {
     await client.query('ROLLBACK');
-
-    console.error('Failed to insert sentences:', err);
-
-    res.status(500).json({
-      error: 'Failed to insert sentences'
-    });
+    res.status(500).json({ error: 'insert failed' });
   } finally {
     client.release();
   }

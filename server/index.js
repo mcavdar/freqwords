@@ -18,6 +18,11 @@ app.use(
 
 app.use('/api', sentencesRouter);
 
+
+// --------------------------------------------------
+// Health check
+// --------------------------------------------------
+
 app.get('/health', async (req, res) => {
   try {
     await pool.query('SELECT 1');
@@ -36,7 +41,44 @@ app.get('/health', async (req, res) => {
   }
 });
 
+
+// --------------------------------------------------
+// English
+// --------------------------------------------------
+
 app.get('/', async (req, res) => {
+  await renderPage(
+    req,
+    res,
+    'sentences',
+    'Daily Sentences',
+    'en',
+    '/'
+  );
+});
+
+
+// --------------------------------------------------
+// French
+// --------------------------------------------------
+
+app.get('/fr', async (req, res) => {
+  await renderPage(
+    req,
+    res,
+    'sentences_fr',
+    'Phrases françaises',
+    'fr',
+    '/fr'
+  );
+});
+
+
+// --------------------------------------------------
+// Generic page renderer
+// --------------------------------------------------
+
+async function renderPage(req, res, table, title, language, basePath) {
   try {
     let week = Number.parseInt(req.query.week, 10);
 
@@ -44,27 +86,26 @@ app.get('/', async (req, res) => {
       week = 0;
     }
 
-    // Seven calendar days per page.
     const offset = week * 7;
 
-const startDaysAgo = week * 7;
-const endDaysAgo = startDaysAgo + 7;
+    const startDaysAgo = week * 7;
+    const endDaysAgo = startDaysAgo + 7;
 
-const result = await pool.query(
-  `
-  SELECT id, sentence, word, created_at
-  FROM sentences
-  WHERE created_at <= CURRENT_DATE - ($1 * INTERVAL '1 day')
-    AND created_at > CURRENT_DATE - ($2 * INTERVAL '1 day')
-  ORDER BY created_at DESC, word ASC, id ASC
-  `,
-  [startDaysAgo, endDaysAgo]
-);
+    const result = await pool.query(
+      `
+      SELECT id, sentence, word, created_at
+      FROM ${table}
+      WHERE created_at <= CURRENT_DATE - ($1 * INTERVAL '1 day')
+        AND created_at > CURRENT_DATE - ($2 * INTERVAL '1 day')
+      ORDER BY created_at DESC, word ASC, id ASC
+      `,
+      [startDaysAgo, endDaysAgo]
+    );
 
     const grouped = {};
 
     for (const row of result.rows) {
-      const date = formatDate(row.created_at);
+      const date = formatDate(row.created_at, language);
 
       if (!grouped[date]) {
         grouped[date] = {};
@@ -112,26 +153,49 @@ const result = await pool.query(
       'utf8'
     );
 
-    const hasPrevious = await hasOlderEntries(offset);
+    const hasPrevious = await hasOlderEntries(table, offset);
     const hasNext = week > 0;
+
+    const previousUrl = `${basePath}?week=${week + 1}`;
+    const nextUrl = `${basePath}?week=${week - 1}`;
+
+    const previousLabel =
+      language === 'fr'
+        ? '← Semaine précédente'
+        : '← Previous week';
+
+    const nextLabel =
+      language === 'fr'
+        ? 'Semaine suivante →'
+        : 'Next week →';
+
+    const weekLabel =
+      language === 'fr'
+        ? `Semaine ${week + 1}`
+        : `Week ${week + 1}`;
+
+    const emptyMessage =
+      language === 'fr'
+        ? 'Aucune phrase trouvée pour cette semaine.'
+        : 'No sentences found for this week.';
 
     const navigation = `
       <nav class="pagination" aria-label="Week navigation">
 
         ${
           hasPrevious
-            ? `<a href="/?week=${week + 1}">← Previous week</a>`
-            : `<span class="disabled">← Previous week</span>`
+            ? `<a href="${previousUrl}">${previousLabel}</a>`
+            : `<span class="disabled">${previousLabel}</span>`
         }
 
         <span class="week-label">
-          Week ${week + 1}
+          ${weekLabel}
         </span>
 
         ${
           hasNext
-            ? `<a href="/?week=${week - 1}">Next week →</a>`
-            : `<span class="disabled">Next week →</span>`
+            ? `<a href="${nextUrl}">${nextLabel}</a>`
+            : `<span class="disabled">${nextLabel}</span>`
         }
 
       </nav>
@@ -144,7 +208,7 @@ const result = await pool.query(
         content ||
         `
         <div class="empty">
-          <p>No sentences found for this week.</p>
+          <p>${emptyMessage}</p>
         </div>
         `
       }
@@ -153,20 +217,29 @@ const result = await pool.query(
     `;
 
     res.send(
-      template.replace('{{CONTENT}}', pageContent)
+      template
+        .replace('{{CONTENT}}', pageContent)
+        .replace('{{TITLE}}', title)
+        .replace('{{LANG}}', language)
     );
+
   } catch (err) {
-    console.error('Failed to load homepage:', err);
+    console.error(`Failed to load ${table}:`, err);
     res.status(500).send('Server error');
   }
-});
+}
 
-async function hasOlderEntries(offset) {
+
+// --------------------------------------------------
+// Check whether an older week exists
+// --------------------------------------------------
+
+async function hasOlderEntries(table, offset) {
   const result = await pool.query(
     `
     SELECT EXISTS (
       SELECT 1
-      FROM sentences
+      FROM ${table}
       WHERE created_at < CURRENT_DATE - ($1 * INTERVAL '7 days')
     ) AS exists
     `,
@@ -176,14 +249,27 @@ async function hasOlderEntries(offset) {
   return result.rows[0].exists;
 }
 
-function formatDate(value) {
-  return new Date(value).toLocaleDateString('en-GB', {
-    weekday: 'long',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric'
-  });
+
+// --------------------------------------------------
+// Date formatting
+// --------------------------------------------------
+
+function formatDate(value, language) {
+  return new Date(value).toLocaleDateString(
+    language === 'fr' ? 'fr-FR' : 'en-GB',
+    {
+      weekday: 'long',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    }
+  );
 }
+
+
+// --------------------------------------------------
+// HTML escaping
+// --------------------------------------------------
 
 function escapeHtml(value) {
   return String(value)
@@ -193,6 +279,11 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 }
+
+
+// --------------------------------------------------
+// Start server
+// --------------------------------------------------
 
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);
