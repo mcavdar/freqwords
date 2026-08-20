@@ -4,19 +4,42 @@ set -Eeuo pipefail
 
 BASE_DIR="/home/mc/repos/freqwords"
 
-ENTRIES_FILE="$BASE_DIR/words/google-10000-english.txt"
-STATE_FILE="$BASE_DIR/words/entry_index.txt"
-LOG_FILE="$BASE_DIR/words/entry_log.txt"
-LOCK_FILE="$BASE_DIR/words/run_daily.lock"
+# ------------------------------------------------------------
+# Language
+# ------------------------------------------------------------
 
-API_URL="http://localhost:3006/api/sentences"
+LANGUAGE="${1:-en}"
+
+case "$LANGUAGE" in
+    en)
+        ENTRIES_FILE="$BASE_DIR/words/google-10000-english.txt"
+        STATE_FILE="$BASE_DIR/words/entry_index.txt"
+        API_URL="http://localhost:3006/api/en/sentences"
+        LANGUAGE_NAME="English"
+        ;;
+        
+    fr)
+        ENTRIES_FILE="$BASE_DIR/words/french-words.txt"
+        STATE_FILE="$BASE_DIR/words/entry_index_fr.txt"
+        API_URL="http://localhost:3006/api/fr/sentences"
+        LANGUAGE_NAME="French"
+        ;;
+        
+    *)
+        echo "Usage: $0 {en|fr}"
+        exit 1
+        ;;
+esac
+
+LOG_FILE="$BASE_DIR/words/entry_log_${LANGUAGE}.txt"
+LOCK_FILE="$BASE_DIR/words/run_daily_${LANGUAGE}.lock"
 
 # ------------------------------------------------------------
 # Logging
 # ------------------------------------------------------------
 
 log() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S'): $*" | tee -a "$LOG_FILE"
+    echo "$(date '+%Y-%m-%d %H:%M:%S'): [$LANGUAGE] $*" | tee -a "$LOG_FILE"
 }
 
 # ------------------------------------------------------------
@@ -41,7 +64,7 @@ fi
 # Check required commands
 # ------------------------------------------------------------
 
-for command in curl jq flock; do
+for command in curl jq flock sed; do
     if ! command -v "$command" >/dev/null 2>&1; then
         log "ERROR: Required command not found: $command"
         exit 1
@@ -55,7 +78,7 @@ done
 exec 9>"$LOCK_FILE"
 
 if ! flock -n 9; then
-    log "Another run is already in progress. Exiting."
+    log "Another $LANGUAGE run is already in progress. Exiting."
     exit 1
 fi
 
@@ -96,19 +119,43 @@ log "Processing '$ENTRY' (index $INDEX)"
 # Generate sentences with Gemini
 # ------------------------------------------------------------
 
+if [ "$LANGUAGE" = "en" ]; then
+
+    PROMPT=$(
+        jq -n \
+            --arg word "$ENTRY" \
+            '(
+                "Create exactly 3 natural example sentences for the English word \""
+                + $word
+                + "\". The sentences should demonstrate realistic usage of the word. "
+                + "Respond with a JSON object only, using this exact format: "
+                + "{\"sentences\":[\"sentence 1\",\"sentence 2\",\"sentence 3\"]}"
+            )'
+    )
+
+else
+
+    PROMPT=$(
+        jq -n \
+            --arg word "$ENTRY" \
+            '(
+                "Create exactly 3 natural French example sentences using the French word \""
+                + $word
+                + "\". The sentences should demonstrate realistic everyday usage of the word. "
+                + "Respond with a JSON object only, using this exact format: "
+                + "{\"sentences\":[\"phrase 1\",\"phrase 2\",\"phrase 3\"]}"
+            )'
+    )
+
+fi
+
 REQUEST_BODY=$(
     jq -n \
-        --arg word "$ENTRY" \
+        --arg prompt "$(echo "$PROMPT" | jq -r '.')" \
         '{
             contents: [{
                 parts: [{
-                    text: (
-                        "Create exactly 3 natural example sentences for the English word \""
-                        + $word
-                        + "\". The sentences should demonstrate realistic usage of the word. "
-                        + "Respond with a JSON object only, using this exact format: "
-                        + "{\"sentences\":[\"sentence 1\",\"sentence 2\",\"sentence 3\"]}"
-                    )
+                    text: $prompt
                 }]
             }]
         }'
