@@ -6,8 +6,9 @@ npm-debug.log*
 
 node_modules/
 
-words/entry_index.txt
-words/entry_log.txt
+words/entry_index*.txt
+words/entry_log*.txt
+words/run_daily*.lock
 
 *.log
 

@@ -13,7 +13,7 @@ node_modules
 
 .env
 
-words/entry_index.txt
-words/entry_log.txt
+words/*
+init.sql
 
 *.log
