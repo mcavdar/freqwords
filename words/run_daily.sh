@@ -14,14 +14,14 @@ case "$LANGUAGE" in
     en)
         ENTRIES_FILE="$BASE_DIR/words/google-10000-english.txt"
         STATE_FILE="$BASE_DIR/words/entry_index.txt"
-        API_URL="http://localhost:3006/api/en/sentences"
+        API_URL="https://freqwords.envai.tr/api/en/sentences"
         LANGUAGE_NAME="English"
         ;;
         
     fr)
         ENTRIES_FILE="$BASE_DIR/words/french-words.txt"
         STATE_FILE="$BASE_DIR/words/entry_index_fr.txt"
-        API_URL="http://localhost:3006/api/fr/sentences"
+        API_URL="https://freqwords.envai.tr/api/fr/sentences"
         LANGUAGE_NAME="French"
         ;;
         
