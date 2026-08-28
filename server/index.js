@@ -16,6 +16,10 @@ app.use(
   express.static(path.join(__dirname, 'public'))
 );
 
+app.get('/favicon.ico', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'favicon.svg'));
+});
+
 app.use('/api', sentencesRouter);
 
 
@@ -244,10 +248,10 @@ async function hasOlderEntries(table, offset) {
     SELECT EXISTS (
       SELECT 1
       FROM ${table}
-      WHERE created_at < CURRENT_DATE - ($1 * INTERVAL '7 days')
+      WHERE created_at < CURRENT_DATE - ($1 * INTERVAL '1 day')
     ) AS exists
     `,
-    [offset / 7 + 7]
+    [offset + 7]
   );
 
   return result.rows[0].exists;
